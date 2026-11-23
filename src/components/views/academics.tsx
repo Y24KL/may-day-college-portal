@@ -67,7 +67,7 @@ export async function PerformanceView({ studentId, subject }: { studentId: strin
         <Stat label="Current average" value={`${latest.average}%`} hint={latest.label} />
         <Stat label="Change vs previous term" value={prev ? `${pointChange(prev.average, latest.average) > 0 ? "+" : ""}${pointChange(prev.average, latest.average)} pts` : "—"} tone={prev && latest.average >= prev.average ? "green" : "red"} hint="percentage points" />
         <Stat label="Best subject" value={latestRows[0]?.subject ?? "—"} tone="gold" hint={latestRows[0] ? `${latestRows[0].total}%` : undefined} />
-        <Stat label="Needs improvement" value={latestRows[latestRows.length - 1]?.subject ?? "—"} tone="red" hint={latestRows.length ? `${latestRows[latestRows.length - 1].total}%` : undefined} />
+        <Stat label={(latestRows[latestRows.length - 1]?.total ?? 100) < 50 ? "Needs improvement" : "Lowest subject"} value={latestRows[latestRows.length - 1]?.subject ?? "—"} tone={(latestRows[latestRows.length - 1]?.total ?? 100) < 50 ? "red" : "navy"} hint={latestRows.length ? `${latestRows[latestRows.length - 1].total}%` : undefined} />
       </div>
       <Card title="Personalised insights" description="Generated from your published results — changes are in percentage points.">
         <ul className="grid gap-2 md:grid-cols-2">{insights.map((i, k) => { const I = ICON[i.kind]; return <li key={k} className={cn("flex items-start gap-3 rounded-xl p-3 text-sm", TONE[i.kind])}><I className="mt-0.5 h-4 w-4 shrink-0" />{i.text}</li>; })}</ul>

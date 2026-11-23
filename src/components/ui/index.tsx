@@ -94,8 +94,8 @@ export function Stat({ label, value, hint, icon, tone = "blue", href }: { label:
       <div className="relative flex items-start justify-between gap-3">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-muted">{label}</p>
-          <p className="mt-2 font-display text-2xl font-bold text-navy sm:text-3xl">{value}</p>
-          {hint && <p className="mt-1 text-xs text-muted">{hint}</p>}
+          <div className="mt-2 font-display text-2xl font-bold text-navy sm:text-3xl">{value}</div>
+          {hint && <div className="mt-1 text-xs text-muted">{hint}</div>}
         </div>
         {icon && <div className={cn("grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white/70", tones[tone].split(" ")[1])}>{icon}</div>}
       </div>

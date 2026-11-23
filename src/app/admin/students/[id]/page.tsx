@@ -122,7 +122,7 @@ export default async function StudentDetail({ params }: { params: Promise<{ id: 
               <thead><tr><th>Term</th><th>Class</th><th>Average</th><th>Position</th><th /></tr></thead>
               <tbody>{results.map((r) => (
                 <tr key={r.id}><td>{termLabel(r.term)}</td><td>{r.class.name}</td><td className="font-semibold">{r.average.toString()}%</td><td>{r.position ? `${r.position}/${r.classSize}` : "—"}</td>
-                  <td className="text-right">{r.reportCards[0]?.fileId && <a className="btn-ghost btn-sm" href={`/api/files/${r.reportCards[0].fileId}`} target="_blank">Report card</a>}</td></tr>
+                  <td className="text-right">{r.reportCards[0]?.fileId && (u.permissions.has("results.review") || u.permissions.has("results.publish")) && <a className="btn-ghost btn-sm" href={`/api/files/${r.reportCards[0].fileId}`} target="_blank">Report card</a>}</td></tr>
               ))}</tbody>
             </table></div>
           ) : <EmptyState title="No published results" />}

@@ -1,0 +1,53 @@
+# Render Blueprint — May Day College Portal
+# Secrets are NOT stored here: add their values in the Render dashboard
+# (Environment → Environment Variables). See docs/ENVIRONMENT.md.
+services:
+  - type: web
+    name: may-day-college-portal
+    runtime: node
+    plan: free
+    region: frankfurt # closest Render region to Lagos; Neon project should be in eu-central-1 (Frankfurt) too
+    branch: main
+    # --include=dev: NODE_ENV=production would otherwise skip the build tools.
+    # Migrations are additive and versioned; bootstrap is idempotent (roles/permissions only).
+    buildCommand: npm ci --include=dev && npx prisma generate && npx prisma migrate deploy && npm run db:bootstrap && npm run build
+    startCommand: npm run start
+    healthCheckPath: /api/health
+    # Deploys are triggered by GitHub Actions ONLY after CI passes on main
+    # (.github/workflows/deploy.yml calls the Render deploy hook).
+    autoDeploy: false
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "22"
+      - key: NEXT_TELEMETRY_DISABLED
+        value: "1"
+      - key: DATABASE_URL # Neon POOLED connection string (…-pooler…?sslmode=require&pgbouncer=true&connection_limit=5)
+        sync: false
+      - key: DIRECT_DATABASE_URL # Neon DIRECT connection string (migrations)
+        sync: false
+      - key: AUTH_SECRET
+        generateValue: true
+      - key: APP_BASE_URL # e.g. https://portal.maydaycollege.com.ng
+        sync: false
+      - key: SETUP_TOKEN # one-time; remove after creating the first Super Administrator
+        sync: false
+      - key: CRON_SECRET
+        generateValue: true
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMAIL_FROM # e.g. May Day College <no-reply@maydaycollege.com.ng>
+        sync: false
+      - key: ADMIN_ALERT_EMAIL
+        sync: false
+      - key: R2_ACCOUNT_ID
+        sync: false
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
+      - key: R2_BUCKET_NAME
+        value: maydaycollege-files
+      - key: R2_ENDPOINT # https://<account_id>.r2.cloudflarestorage.com
+        sync: false

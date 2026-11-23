@@ -155,7 +155,8 @@ export async function canAccessFile(user: CurrentUser | null, doc: UploadedDocum
         return p.has("finance.view") || p.has("finance.verify");
       case "REPORT_CARD":
       case "RESULT_DOCUMENT":
-        return p.has("results.review") || p.has("results.publish") || p.has("students.view");
+        // Academic records: results officers only (least privilege — not finance).
+        return p.has("results.review") || p.has("results.publish") || p.has("reportcards.configure");
       default:
         return true;
     }

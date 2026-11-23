@@ -56,7 +56,7 @@ async function ensureUnique(mail: string) {
 
 export async function registerStudent(_: ActionState, fd: FormData): Promise<ActionState> {
   return run(async () => {
-    await limit("register", 8, 60 * 60_000);
+    await limit("register", 60, 60 * 60_000);
     const d = z.object({ email, guardianEmail: email, password: z.string(), confirm: z.string() }).parse(Object.fromEntries(fd));
     if (d.email === d.guardianEmail) throw new Error("The parent/guardian email must be different from the student's email.");
     const s = await checkPassword(d.password, d.confirm, d.email);
@@ -79,7 +79,7 @@ export async function registerStudent(_: ActionState, fd: FormData): Promise<Act
 
 export async function registerTeacher(_: ActionState, fd: FormData): Promise<ActionState> {
   return run(async () => {
-    await limit("register", 8, 60 * 60_000);
+    await limit("register", 60, 60 * 60_000);
     const d = z.object({ fullName: z.string().trim().min(3, "Enter your full name.").max(120), email, password: z.string(), confirm: z.string() }).parse(Object.fromEntries(fd));
     const s = await checkPassword(d.password, d.confirm, d.email);
     if (!s.teacherRegistrationOpen) throw new Error("Teacher registration is currently closed.");
@@ -101,7 +101,7 @@ export async function registerTeacher(_: ActionState, fd: FormData): Promise<Act
 
 export async function registerParent(_: ActionState, fd: FormData): Promise<ActionState> {
   return run(async () => {
-    await limit("register", 8, 60 * 60_000);
+    await limit("register", 60, 60 * 60_000);
     const d = z
       .object({ fullName: z.string().trim().min(3, "Enter your full name.").max(120), email, phone: z.string().trim().min(7, "Enter a valid phone number.").max(30), password: z.string(), confirm: z.string(), invite: z.string().optional() })
       .parse(Object.fromEntries(fd));
@@ -166,8 +166,11 @@ export async function resendVerification(_: ActionState): Promise<ActionState> {
 
 export async function login(_: ActionState, fd: FormData): Promise<ActionState> {
   return run(async () => {
-    await limit("login", 20, 15 * 60_000);
+    // Per-IP ceiling is generous because a whole school lab may share one
+    // public IP; per-account+IP limiting and account lockout stop brute force.
+    await limit("login", 300, 15 * 60_000);
     const d = z.object({ email, password: z.string().min(1, "Enter your password."), next: z.string().optional() }).parse(Object.fromEntries(fd));
+    await limit(`login:${d.email}`, 10, 15 * 60_000);
     const s = await getSettingsFresh();
     const generic = "Incorrect email or password.";
     const user = await db.user.findUnique({ where: { email: d.email } });

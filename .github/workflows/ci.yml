@@ -1,0 +1,105 @@
+name: CI
+
+on:
+  push:
+    branches: [main, development, "claude/**"]
+  pull_request:
+    branches: [main, development]
+  workflow_call:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  NEXT_TELEMETRY_DISABLED: "1"
+  DATABASE_URL: postgresql://postgres:postgres@localhost:5432/mdc_ci
+  DIRECT_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/mdc_ci
+  TEST_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/mdc_test
+  AUTH_SECRET: ci-only-secret-ci-only-secret-ci-only
+  APP_BASE_URL: http://localhost:3000
+
+jobs:
+  quality:
+    name: Lint, types & unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run test:unit
+
+  integration:
+    name: Integration tests & migration validation
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env: { POSTGRES_PASSWORD: postgres, POSTGRES_DB: mdc_ci }
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - name: Create test and shadow databases
+        run: |
+          PGPASSWORD=postgres psql -h localhost -U postgres -c "CREATE DATABASE mdc_test" -c "CREATE DATABASE mdc_shadow"
+      - name: Migrations apply cleanly to an empty database
+        run: npx prisma migrate deploy
+      - name: Schema and migrations are in sync (no un-migrated schema changes)
+        run: npx prisma migrate diff --from-migrations prisma/migrations --to-schema-datamodel prisma/schema.prisma --shadow-database-url postgresql://postgres:postgres@localhost:5432/mdc_shadow --exit-code
+      - run: npm run test:integration
+
+  build-e2e:
+    name: Production build & end-to-end tests
+    runs-on: ubuntu-latest
+    needs: [quality]
+    services:
+      postgres:
+        image: postgres:16
+        env: { POSTGRES_PASSWORD: postgres, POSTGRES_DB: mdc_ci }
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - run: npx prisma migrate deploy
+      - name: Seed DEMO data (CI database only)
+        run: npm run db:seed:demo
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - name: Start server
+        run: |
+          ALLOW_LOCAL_STORAGE=true PORT=3000 npm run start > server.log 2>&1 &
+          for i in $(seq 1 60); do curl -sf http://localhost:3000/api/health && break; sleep 1; done
+      - run: npx playwright test --trace off
+        env: { E2E_BASE_URL: "http://localhost:3000" }
+      - if: failure()
+        run: tail -200 server.log
+
+  security:
+    name: Dependency security
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm }
+      - run: npm ci
+      - name: npm audit (production dependencies, high & critical)
+        run: npm audit --omit=dev --audit-level=high
+      - name: Dependency review
+        if: github.event_name == 'pull_request'
+        uses: actions/dependency-review-action@v4
+        with: { fail-on-severity: high }

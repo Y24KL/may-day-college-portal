@@ -26,22 +26,29 @@ export function SubmitButton({ children, className, pendingText, disabled, name,
  * success toasts and follows redirects returned by the action.
  */
 export function ActionForm({ action, children, className, resetOnSuccess, onSuccess, successToast = true, encType }: { action: Action; children: ReactNode; className?: string; resetOnSuccess?: boolean; onSuccess?: () => void; successToast?: boolean; encType?: string }) {
-  const [state, formAction] = useActionState(action, null);
   const ref = useRef<HTMLFormElement>(null);
   const router = useRouter();
-  useEffect(() => {
-    if (!state) return;
-    if (state.ok) {
+  // Side effects run inside the action (not in an effect) so they still happen
+  // when the form unmounts because the refreshed page no longer renders it.
+  const wrapped = async (prev: ActionState, fd: FormData): Promise<ActionState> => {
+    let state: ActionState;
+    try {
+      state = await action(prev, fd);
+    } catch {
+      state = { ok: false, error: "The server could not be reached. If the portal was idle it may be waking up — please try again in a moment." };
+    }
+    if (state?.ok) {
       if (successToast && state.message) toast.success(state.message);
       if (resetOnSuccess) ref.current?.reset();
       onSuccess?.();
       if (state.redirect) router.push(state.redirect);
       else router.refresh();
-    } else if (state.error) {
+    } else if (state?.error) {
       toast.error(state.error);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state]);
+    return state;
+  };
+  const [state, formAction] = useActionState(wrapped, null);
   return (
     <form ref={ref} action={formAction} className={className} encType={encType}>
       {state && !state.ok && state.error && (

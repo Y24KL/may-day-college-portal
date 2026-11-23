@@ -1,0 +1,49 @@
+name: Deploy to Render
+
+# Production deploys happen only from main, only after the full CI suite passes.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  ci:
+    uses: ./.github/workflows/ci.yml
+
+  deploy:
+    needs: ci
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Check configuration
+        env:
+          HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+          URL: ${{ vars.APP_BASE_URL }}
+        run: |
+          if [ -z "$HOOK" ] || [ -z "$URL" ]; then
+            echo "::error::Set the RENDER_DEPLOY_HOOK_URL secret and APP_BASE_URL variable (Settings → Environments → production)."
+            exit 1
+          fi
+      - name: Trigger Render deploy
+        run: curl -fsS -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}" > /dev/null
+      - name: Verify deployment health
+        env:
+          URL: ${{ vars.APP_BASE_URL }}
+        run: |
+          # Free instances build + cold-start slowly; allow up to ~15 minutes.
+          sleep 120
+          for i in $(seq 1 26); do
+            body=$(curl -fsS --max-time 60 "$URL/api/health" || true)
+            echo "attempt $i: $body"
+            if echo "$body" | grep -q '"database":"up"'; then echo "Healthy"; exit 0; fi
+            sleep 30
+          done
+          echo "::error::Deployment did not become healthy. Roll back from the Render dashboard (Deploys → previous deploy → Rollback)."
+          exit 1

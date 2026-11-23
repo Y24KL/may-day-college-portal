@@ -16,7 +16,7 @@ export async function GET() {
   const body = {
     status: database === "up" ? "ok" : "degraded",
     database,
-    storage: env.r2Configured ? "r2" : env.isProd ? "not-configured" : "local-dev",
+    storage: env.r2Configured ? "r2" : env.isProd ? (process.env.ALLOW_LOCAL_STORAGE === "true" ? "local-override" : "not-configured") : "local-dev",
     email: env.resendApiKey ? "resend" : env.isProd ? "not-configured" : "console-dev",
     latencyMs: Date.now() - started,
     time: new Date().toISOString(),

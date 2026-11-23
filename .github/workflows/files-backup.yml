@@ -1,0 +1,30 @@
+name: File storage backup
+
+# Weekly copy of the private R2 files bucket to a separate backup bucket.
+# The application never hard-deletes school files (soft delete via deletedAt),
+# and this copy protects against accidental bucket-level deletion.
+on:
+  schedule:
+    - cron: "0 2 * * 0"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Sync files bucket → backup bucket (no deletions propagated)
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.BACKUP_R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.BACKUP_R2_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: auto
+          R2_ENDPOINT: ${{ secrets.R2_ENDPOINT }}
+          SRC: ${{ vars.R2_BUCKET_NAME || 'maydaycollege-files' }}
+          DST: ${{ vars.FILES_BACKUP_BUCKET }}
+        run: |
+          if [ -z "$DST" ]; then echo "::warning::FILES_BACKUP_BUCKET not set — skipping."; exit 0; fi
+          aws s3 sync "s3://$SRC" "s3://$DST/snapshot" --endpoint-url "$R2_ENDPOINT" --exclude "database-backups/*" --only-show-errors
+          echo "Synced at $(date -u)"

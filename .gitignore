@@ -27,3 +27,5 @@ test-results/
 *.tsbuildinfo
 next-env.d.ts
 .vercel
+.storage-test/
+tests/e2e/fixtures/

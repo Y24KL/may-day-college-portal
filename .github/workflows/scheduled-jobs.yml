@@ -1,0 +1,31 @@
+name: Scheduled jobs
+
+# Runs the portal's background work: scheduled announcements, attendance
+# alerts, fee reminders, email retries and storage checks. Three runs a day —
+# this is real work, not a keep-alive; it wakes the free instance ~3×/day.
+on:
+  schedule:
+    - cron: "0 6 * * 1-6"   # 07:00 Lagos
+    - cron: "0 11 * * 1-6"  # 12:00 Lagos
+    - cron: "0 15 * * *"    # 16:00 Lagos
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Call job endpoint
+        env:
+          URL: ${{ vars.APP_BASE_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$URL" ] || [ -z "$CRON_SECRET" ]; then echo "::warning::APP_BASE_URL / CRON_SECRET not configured — skipping."; exit 0; fi
+          for i in 1 2 3; do
+            if curl -fsS --max-time 120 -X POST -H "Authorization: Bearer $CRON_SECRET" "$URL/api/cron/jobs"; then exit 0; fi
+            echo "Attempt $i failed (instance may be waking up); retrying in 45s"; sleep 45
+          done
+          exit 1

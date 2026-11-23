@@ -89,7 +89,9 @@ const localDriver: StorageDriver = {
 export function storage(): StorageDriver {
   if (env.r2Configured) return r2Driver;
   if (env.isProd && process.env.ALLOW_LOCAL_STORAGE !== "true") {
-    throw new Error("Cloudflare R2 is not configured (R2_* environment variables). Refusing to store files on the ephemeral filesystem.");
+    // Render's filesystem is ephemeral — never store school files on it.
+    console.error("[storage] Cloudflare R2 is not configured (R2_* environment variables).");
+    throw new Error("File storage is not configured yet, so uploads are unavailable. Please contact the school administration.");
   }
   return localDriver;
 }
